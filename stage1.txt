@@ -1,0 +1,53 @@
+//To use this stopwatch, press 'p' to play/pause the stopwatch or press 'e' to 
+//end the program/stopwatch
+//R0 stores the seconds ones position values
+//R1 stores the seconds tens position
+//A Dumb Wait timer is used in this implementation of the seconds counter
+//R2 used for storing and displaying strings
+//R3 - R4 used for the timer
+      MOV R2, #prompt
+      STR R2, .WriteString
+initialize:
+      MOV R0, #0        //initializes the seconds ones display with zero
+      MOV R1, #0        //initializes the seconds tens display with zero
+play:
+      LDR R2, .LastKeyAndReset //looks for the last key input, specifically 'p' to play the stopwatch
+      ORR R2, R2, #32   //making the input lowercase
+      CMP R2, #112      //if the key pressed was 'p'
+      BNE play
+DisplayValues:
+      MOV R2, #ElapsedTime
+      STR R2, .WriteString //printing the string "Elapsed Time"
+      STR R1, .WriteUnsignedNum //prints the seconds tens position
+      STR R0, .WriteUnsignedNum //prints the seconds ones position
+      MOV R2, #newline
+      STR R2, .WriteString //printing three new lines to make it appear like its just one display
+delay:
+      MOV R3, #10000000
+      MOV R4, R3
+timer:                  //dumb wait timer
+      SUB R4, R4, #1
+      CMP R4, #0
+      BNE timer
+      ADD R0, R0, #1    //increments the seconds ones position by one
+      CMP R0, #10       //seconds ones position rolls over after 9 and increments tens position by 1
+      BNE skip
+      MOV R0, #0
+      ADD R1, R1, #1    //increments the seconds tens position by one
+      CMP R1, #6        //compares to check the roll over after 59 seconds
+      BNE skip
+      MOV R1, #0
+skip:
+      LDR R2, .LastKeyAndReset
+      CMP R2, #0        //compare if no key was pressed
+      BEQ DisplayValues
+      ORR R2, R2, #32
+      CMP R2, #112      // compare to pause
+      BEQ play
+      CMP R2, #101      //compare to stop
+      BEQ done
+done:
+      HALT
+ElapsedTime: .ASCIZ "Elapsed Time: "
+newline: .ASCIZ "\n\n\n"
+prompt: .ASCIZ "Press 'p' to play and pause the stopwatch.\nPress 'e' to stop the stopwatch.\n"

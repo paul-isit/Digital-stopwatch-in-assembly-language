@@ -1,0 +1,115 @@
+//To use this stopwatch, use the following keys (either lowercase or uppercase):
+//'P' to play/pause the stopwatch
+//'R' to reset the stopwatch
+//'E' to end the program/stopwatch
+/////I have used constant addresses in memory to store the values to be displayed
+//by the stopwatch. These are the memory location 0x00900, 00904, 00908, 0090c
+//REGISTER DETAILS:
+//R0-R3 are used for pretty much everything, they are used and re-used
+//R4 is used in the busy wait timer
+//R8 is used as a reset flag
+      MOV R0, #prompt
+      STR R0, .WriteString
+initialize:
+      MOV R0, #0
+      STR R0, 0x00900   //minutes tens position
+      STR R0, 0x00904   //minutes ones position
+      STR R0, 0x00908   //seconds tens position
+      STR R0, 0x0090c   //seconds ones position
+play:
+      MOV R8, #0        //initialize the reset flag as 0
+      LDR R0, .LastKeyAndReset //asking for input, i.e. 'play' or 'stop'
+      ORR R0, R0, #32   //converting the input to lower case
+      CMP R0, #101      //compare to stop, i.e. if 'e' was pressed
+      BEQ done
+      CMP R0, #114      //compare to reset, i.e. if 'r' was pressed
+      BEQ Reset
+      CMP R0, #112      //if 'p' was pressed
+      BNE play
+skip:
+      BL DisplayValues
+delay:
+      MOV R1, #1
+      LDR R2, .Time
+timer:                  //better busy wait timer
+      LDR R3, .Time
+      SUB R4, R3, R2
+      CMP R4, R1
+      BLT timer
+      LDR R0, .LastKeyAndReset
+      CMP R0, #0
+      BEQ increment
+      ORR R0, R0, #32
+      CMP R0, #112      // compare to pause
+      BEQ play
+      CMP R0, #114      //compare to reset
+      BEQ Reset
+      CMP R0, #101      //compare to stop
+      BEQ done
+increment:
+      LDR R2, 0x0090c
+      ADD R2, R2, R1    //incrementing the seconds ones position
+      STR R2, 0x0090c
+      CMP R8, #1        //checks to see if the reset flag is set
+      BEQ play
+      CMP R2, #10       //check to see the seconds roll ones over
+      BNE skip
+      MOV R0, #0
+      STR R0, 0x0090c
+      LDR R2, 0x00908
+      ADD R2, R2, R1    //incrementing the seconds tens position
+      STR R2, 0x00908
+      CMP R2, #6        //check to see the seconds tens roll over
+      BNE skip
+      MOV R0, #0
+      STR R0, 0x00908
+      LDR R2, 0x00904
+      ADD R2, R2, R1    //incrementing minutes ones position
+      STR R2, 0x00904
+      CMP R2, #10       //check to see the minutes ones roll over
+      BNE skip
+      MOV R0, #0
+      STR R0, 0x00904
+      LDR R2, 0x00900
+      ADD R2, R2, R1    //incrementing the minutes tens position
+      STR R2, 0x00900
+      CMP R2, #10       //check to see the minutes tens roll over
+      BNE skip
+      MOV R0, #0
+      STR R0, 0x00900
+      B skip
+/////I have used constant addresses in memory to store the values to be displayed
+////by the stopwatch. These are the memory location 0xfff00, fff04, fff08, fff0c
+DisplayValues:
+      PUSH {R0-R8}
+      MOV R0, #ElapsedTime
+      STR R0, .WriteString
+      LDR R0, 0x00900   //minutes tens position
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00904   //minutes ones position
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00908   //seconds tens position
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0090c   //seconds ones position
+      STR R0, .WriteUnsignedNum
+      MOV R0, #newline
+      STR R0, .WriteString
+      POP {R0-R8}
+      RET
+Reset:
+      MOV R8, #1        //reset flag set to 1
+      MOV R0, #0
+      STR R0, 0x00900   //minutes tens position
+      STR R0, 0x00904   //minutes ones position
+      STR R0, 0x00908   //seconds tens position
+      STR R0, 0x0090c   //seconds ones position
+      BL DisplayValues
+      B increment
+done:
+      HALT
+ElapsedTime: .ASCIZ "Elapsed Time: "
+colon: .ASCIZ ":"
+newline: .ASCIZ "\n\n\n"
+prompt: .ASCIZ "Press 'p' to play and pause the stopwatch.\nPress 'e' to stop the stopwatch.\nPress 'r' to reset the stopwatch.\n"

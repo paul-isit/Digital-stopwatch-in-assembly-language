@@ -1,0 +1,337 @@
+//To use this stopwatch, use the following keys (either lowercase or uppercase):
+//'P' to play/pause the stopwatch
+//'S' to split the time in the stop watch
+//When the stopwatch is in the 'paused' state, the stored split/buffer times
+//can be accessed by pressing 'S'
+//'R' to reset the stopwatch
+//'E' to end the program/stopwatch
+//////I have used constant addresses in memory to store the values to be displayed
+//by the stopwatch. These are the memory location 0x00900, 00904, 00908, 0090c 
+//for displaying the elapsed time, the memory addresses 0x00910, 00914, 
+//00918, 0091c are used for storing the split time values, whereas the memory 
+//addresses 0x00920 - 0x0095c are used for storing the buffer split times. 
+//REGISTER DETAILS:
+//R0-R3 are used for pretty much everything, they are used and re-used
+//R4 is used in the busy wait timer
+//R7 is used as an index for displaying the stored split times
+//R8 is used as a reset flag
+      MOV R0, #prompt
+      STR R0, .WriteString
+//initializing all the memory addresses to zero as the initial values of a stopwatch is zero
+initialize:
+      MOV R0, #0
+      STR R0, 0x00900   //minutes tens position
+      STR R0, 0x00904   //minutes ones position
+      STR R0, 0x00908   //seconds tens position
+      STR R0, 0x0090c   //seconds ones position
+      STR R0, 0x00910   //split minutes tens position
+      STR R0, 0x00914   //split minutes ones position
+      STR R0, 0x00918   //split seconds tens position
+      STR R0, 0x0091c   //split seconds ones position
+      STR R0, 0x00920   //buffer1 split minutes tens position
+      STR R0, 0x00924   //buffer1 split minutes ones position
+      STR R0, 0x00928   //buffer1 split seconds tens position
+      STR R0, 0x0092c   //buffer1 split seconds ones position
+      STR R0, 0x00930   //buffer2 split minutes tens position
+      STR R0, 0x00934   //buffer2 split minutes ones position
+      STR R0, 0x00938   //buffer2 split seconds tens position
+      STR R0, 0x0093c   //buffer2 split seconds ones position
+      STR R0, 0x00940   //buffer3 split minutes tens position
+      STR R0, 0x00944   //buffer3 split minutes ones position
+      STR R0, 0x00948   //buffer3 split seconds tens position
+      STR R0, 0x0094c   //buffer3 split seconds ones position
+      STR R0, 0x00950   //buffer4 split minutes tens position
+      STR R0, 0x00954   //buffer4 split minutes ones position
+      STR R0, 0x00958   //buffer4 split seconds tens position
+      STR R0, 0x0095c   //buffer4 split seconds ones position
+play:
+      MOV R8, #0        //this is the reset flag, i.e. R8 changes to 1 when the reset 
+//button is pressed and then set back to zero when the play button is pressed
+      LDR R0, .LastKeyAndReset //asking for input, i.e. 'play' or 'stop'
+      ORR R0, R0, #32   //converting the input to lower case
+      CMP R0, #101      //compare to stop, i.e. if 'e' was pressed
+      BEQ done
+      CMP R0, #114      //compare to reset, i.e. if 'r' was pressed
+      BEQ Reset
+      CMP R0, #115      //compare to show the stored split time, if 's' was pressed
+      BEQ BufferLoop
+      CMP R0, #112      //if 'p' was pressed
+      BNE play
+skip1:
+      BL DisplayValues  //calls the function DisplayValues
+//we need to create a one second delay between every time we call DisplayValues
+//for this I use a better busy wait timer, that uses ARMlite .Time function
+delay:
+      MOV R0, #1        //represents the one second delay
+      LDR R2, .Time
+timer: 
+      LDR R3, .Time
+      SUB R4, R3, R2
+      CMP R4, R0        //compares if the difference in time stored in R4 is equal to R0
+      BLT timer
+      LDR R0, .LastKeyAndReset
+      CMP R0, #0
+      BEQ increment
+      ORR R0, R0, #32
+      CMP R0, #112      // compare to pause if 'p' was pressed
+      BEQ play
+      CMP R0, #114      //compare to reset if 'r' was pressed
+      BEQ Reset
+      CMP R0, #101      //compare to stop if 'e' was pressed
+      BEQ done
+      CMP R0, #115      //compare to split if 's' was pressed
+      BEQ Split
+increment:              //loads the values from memory and increments it according to the condition
+      LDR R2, 0x0090c   //loading the seconds ones position
+      ADD R2, R2, #1    //incrementing the seconds ones position
+      STR R2, 0x0090c
+      CMP R8, #1        //checks to see if the reset flag is set to 1
+      BEQ play          //if yes, then branches back to play
+      CMP R2, #10       //check to see the seconds ones roll over
+      BNE skip1         //if not equal to 10 then skip the rest of the increments
+      MOV R0, #0
+      STR R0, 0x0090c   //if equal to 10 then store the memory address with 0
+      LDR R2, 0x00908   //loading the seconds tems position
+      ADD R2, R2, #1    //incrementing the seconds tens position
+      STR R2, 0x00908
+      CMP R2, #6        //check to see the seconds tens roll over
+      BNE skip1         //if not equal to 6 then skip the rest of the increments
+      MOV R0, #0
+      STR R0, 0x00908   //if equal to 6 then store the memory address with 0
+      LDR R2, 0x00904   //loading the minutes ones position
+      ADD R2, R2, #1    //incrementing minutes ones position
+      STR R2, 0x00904
+      CMP R2, #10       //check to see the minutes ones rool over
+      BNE skip1         //if not equal to 10 then skip the rest of the increments
+      MOV R0, #0
+      STR R0, 0x00904   //if equal to 10 then store the memory address with 0
+      LDR R2, 0x00900   //loading the minutes tens position
+      ADD R2, R2, #1    //incrementing minutes tens position
+      STR R2, 0x00900
+      CMP R2, #10       //check to see the minutes tens roll over
+      BNE skip1         //if not equal to 10 then skip the rest of the increments
+      MOV R0, #0
+      STR R0, 0x00900   //if equal to 10 then store the memory address with 0
+      B skip1
+//this is a function. It prints out the values displayed by the stopwatch interface
+//it first loads the values stored in memory and then prints them out to the screen
+DisplayValues: 
+      PUSH {R0-R8}
+      MOV R0, #ElapsedTime
+      STR R0, .WriteString
+      LDR R0, 0x00900   //minutes tens position
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00904   //minutes ones position
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00908   //seconds tens position
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0090c   //seconds ones position
+      STR R0, .WriteUnsignedNum
+      MOV R0, #space
+      STR R0, .WriteString
+      MOV R0, #SplitTime
+      STR R0, .WriteString
+      LDR R0, 0x00910   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00914   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00918   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0091c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+//after printing the display, we need to print multiple new lines to makes it look
+//like its the same display
+      MOV R0, #newline
+      STR R0, .WriteString
+      POP {R0-R8}
+      RET               //returns back to where it was called from
+Split: 
+//this function loads values from the elapsed time 
+//memory address and stores them to the split time memory addresses
+      PUSH {R0-R8}
+//loading buffer3 and storing to buffer4
+      LDR R0, 0x00940
+      STR R0, 0x00950
+      LDR R0, 0x00944
+      STR R0, 0x00954
+      LDR R0, 0x00948
+      STR R0, 0x00958
+      LDR R0, 0x0094c
+      STR R0, 0x0095c
+//loading buffer2 and storing to buffer3
+      LDR R0, 0x00930
+      STR R0, 0x00940
+      LDR R0, 0x00934
+      STR R0, 0x00944
+      LDR R0, 0x00938
+      STR R0, 0x00948
+      LDR R0, 0x0093c
+      STR R0, 0x0094c
+//loading buffer1 and storing to buffer2
+      LDR R0, 0x00920
+      STR R0, 0x00930
+      LDR R0, 0x00924
+      STR R0, 0x00934
+      LDR R0, 0x00928
+      STR R0, 0x00938
+      LDR R0, 0x0092c
+      STR R0, 0x0093c
+//loading split value and storing to buffer1
+      LDR R0, 0x00910
+      STR R0, 0x00920
+      LDR R0, 0x00914
+      STR R0, 0x00924
+      LDR R0, 0x00918
+      STR R0, 0x00928
+      LDR R0, 0x0091c
+      STR R0, 0x0092c
+//loading the elapsed time and storing to the split time value
+      LDR R0, 0x00900   //tens position of minutes of elapsed time
+      STR R0, 0x00910   //tens position of minutes of split time
+      LDR R0, 0x00904   //ones position of mintues of elapsed time
+      STR R0, 0x00914   //ones position of minutes of split time
+      LDR R0, 0x00908   //tens position of seconds of elapsed time
+      STR R0, 0x00918   //tens position of seconds of split time
+      LDR R0, 0x0090c   //ones position of seconds of elapsed time
+      STR R0, 0x0091c   //ones position of seconds of split time
+      POP {R0-R8}
+      B increment
+Reset:
+      MOV R8, #1        //sets the reset flag to 1
+      MOV R0, #0
+      STR R0, 0x00900   //minutes tens position
+      STR R0, 0x00904   //minutes ones position
+      STR R0, 0x00908   //seconds tens position
+      STR R0, 0x0090c   //seconds ones position
+      STR R0, 0x00910   //split minutes tens position
+      STR R0, 0x00914   //split minutes ones position
+      STR R0, 0x00918   //split seconds tens position
+      STR R0, 0x0091c   //split seconds ones position
+      STR R0, 0x00920   //buffer1 split minutes tens position
+      STR R0, 0x00924   //buffer1 split minutes ones position
+      STR R0, 0x00928   //buffer1 split seconds tens position
+      STR R0, 0x0092c   //buffer1 split seconds ones position
+      STR R0, 0x00930   //buffer2 split minutes tens position
+      STR R0, 0x00934   //buffer2 split minutes ones position
+      STR R0, 0x00938   //buffer2 split seconds tens position
+      STR R0, 0x0093c   //buffer2 split seconds ones position
+      STR R0, 0x00940   //buffer3 split minutes tens position
+      STR R0, 0x00944   //buffer3 split minutes ones position
+      STR R0, 0x00948   //buffer3 split seconds tens position
+      STR R0, 0x0094c   //buffer3 split seconds ones position
+      STR R0, 0x00950   //buffer4 split minutes tens position
+      STR R0, 0x00954   //buffer4 split minutes ones position
+      STR R0, 0x00958   //buffer4 split seconds tens position
+      STR R0, 0x0095c   //buffer4 split seconds ones position
+      BL DisplayValues
+      B increment
+BufferLoop:
+      MOV R0, #newline
+      STR R0, .WriteString
+      MOV R7, #1        //used for representing which split time is being displayed
+repeat:
+      MOV R0, #StoredSplitTime
+      STR R0, .WriteString
+      STR R7, .WriteUnsignedNum
+      MOV R0, #dash
+      STR R0, .WriteString
+      MOV R0, #space
+      STR R0, .WriteString
+      CMP R7, #1
+      BGT next1
+      LDR R0, 0x00910   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00914   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00918   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0091c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+      B NewLine
+next1:
+      CMP R7, #2
+      BGT next2
+      LDR R0, 0x00920   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00924   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00928   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0092c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+      B NewLine
+next2:
+      CMP R7, #3
+      BGT next3
+      LDR R0, 0x00930   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00934   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00938   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0093c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+      B NewLine
+next3:
+      CMP R7, #4
+      BGT next4
+      LDR R0, 0x00940   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00944   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00948   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0094c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+      B NewLine
+next4:
+      LDR R0, 0x00950   //minutes tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x00954   //minutes ones position for split time
+      STR R0, .WriteUnsignedNum
+      MOV R0, #colon
+      STR R0, .WriteString
+      LDR R0, 0x00958   //seconds tens position for split time
+      STR R0, .WriteUnsignedNum
+      LDR R0, 0x0095c   //seconds ones position for split time
+      STR R0, .WriteUnsignedNum
+NewLine:
+      MOV R0, #newline
+      STR R0, .WriteString
+Loop:
+      LDR R0, .LastKeyAndReset
+      ORR R0, R0, #32
+      CMP R0, #112      // compare to pause if 'p' was pressed
+      BEQ skip1
+      CMP R0, #114      //compare to reset if 'r' was pressed
+      BEQ Reset
+      CMP R0, #101      //compare to stop if 'e' was pressed
+      BEQ done
+      CMP R0, #115      //compare to split if 's' was pressed
+      BNE Loop
+      ADD R7, R7, #1    //increments the index no for the stored split time
+      CMP R7, #6
+      BEQ BufferLoop    //loops back to the first stored split after the last one
+      B repeat
+done:
+      HALT
+dash: .ASCIZ "-"
+colon: .ASCIZ ":"
+newline: .ASCIZ "\n\n\n"
+space: .ASCIZ " "
+ElapsedTime: .ASCIZ "Elapsed Time: "
+SplitTime: .ASCIZ "Split Time: "
+StoredSplitTime: .ASCIZ "Stored Split Time "
+prompt: .ASCIZ "Press 'p' to play and pause the stopwatch.\nPress 'e' to stop the stopwatch.\nPress 'r' to reset the stopwatch.\nPress 's' to split.\n"
